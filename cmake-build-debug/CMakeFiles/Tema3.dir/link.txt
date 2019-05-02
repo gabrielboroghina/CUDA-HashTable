@@ -1,0 +1,1 @@
+/bin/c++  -g   CMakeFiles/Tema3.dir/std_hashtable.cpp.o CMakeFiles/Tema3.dir/test_map.cpp.o  -o Tema3 

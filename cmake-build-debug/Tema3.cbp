@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="Tema3"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="gcc"/>
+		<Option virtualFolders="CMake Files\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="rebuild_cache">
+				<Option working_dir="/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="Tema3">
+				<Option output="/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Tema3" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/home/gabriel/Desktop/ASC/Tema3/."/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../include/c++/8.3.0"/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../include/c++/8.3.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../include/c++/8.3.0/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 Tema3"/>
+					<CompileFile command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="Tema3/fast">
+				<Option output="/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Tema3" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/home/gabriel/Desktop/ASC/Tema3/."/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../include/c++/8.3.0"/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../include/c++/8.3.0/x86_64-pc-linux-gnu"/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../include/c++/8.3.0/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 Tema3/fast"/>
+					<CompileFile command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="edit_cache">
+				<Option working_dir="/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/bin/make -j8 -f &quot;/home/gabriel/Desktop/ASC/Tema3/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/home/gabriel/Desktop/ASC/Tema3/gpu_hashtable.cu">
+			<Option target="Tema3"/>
+		</Unit>
+		<Unit filename="/home/gabriel/Desktop/ASC/Tema3/gpu_hashtable.hpp">
+			<Option target="Tema3"/>
+		</Unit>
+		<Unit filename="/home/gabriel/Desktop/ASC/Tema3/std_hashtable.cpp">
+			<Option target="Tema3"/>
+		</Unit>
+		<Unit filename="/home/gabriel/Desktop/ASC/Tema3/test_map.cpp">
+			<Option target="Tema3"/>
+		</Unit>
+		<Unit filename="/home/gabriel/Desktop/ASC/Tema3/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>
