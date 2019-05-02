@@ -4,6 +4,9 @@
 using namespace std;
 
 #define	KEY_INVALID		0
+#define THREADS_PER_BLOCK 1024
+#define MIN_LOAD_FACTOR 0.6
+#define MAX_LOAD_FACTOR 0.8
 
 #define DIE(assertion, call_description) \
 	do {	\
@@ -14,7 +17,7 @@ using namespace std;
 		exit(errno);	\
 	}	\
 } while (0)
-	
+
 const size_t primeList[] =
 {
 	2llu, 3llu, 5llu, 7llu, 11llu, 13llu, 17llu, 23llu, 29llu, 37llu, 47llu,
@@ -79,17 +82,20 @@ int hash3(int data, int limit) {
 //
 class GpuHashTable
 {
+	int numInsertedPairs, hashtableSize;
+	int *hashmap[2]; // pointer to device hashtable
+
 	public:
 		GpuHashTable(int size);
 		void reshape(int sizeReshape);
-		
+
 		bool insertBatch(int *keys, int* values, int numKeys);
 		int* getBatch(int* key, int numItems);
-		
+
 		float loadFactor();
 		void occupancy();
 		void print(string info);
-	
+
 		~GpuHashTable();
 };
 
