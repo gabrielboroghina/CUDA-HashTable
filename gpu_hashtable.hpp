@@ -80,10 +80,14 @@ int hash3(int data, int limit) {
 	return ((long) abs(data) * primeList[70]) % primeList[93] % limit;
 }
 
+/** Structure representing a (key, value) pair */
 struct entry {
 	int key, value;
 };
 
+/** Hashtable structure containing its size and the list of buckets.
+ *  Each bucket consists of two slots for (key, value) pairs.
+ */
 struct hash_table {
 	int size;
 	entry *map[2];
@@ -94,7 +98,7 @@ struct hash_table {
 //
 class GpuHashTable {
 	int numInsertedPairs;
-	hash_table hashmap;  // pointer to device hashtable
+	hash_table hashmap;
 
 public:
 	GpuHashTable(int size);

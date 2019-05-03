@@ -6,69 +6,82 @@
 
 #include "gpu_hashtable.hpp"
 
+/** Get the hash of a value and reduce it in the range [0, limit) */
 __device__ int getHash(int data, int limit) {
-	return ((long long) abs(data) * 653267llu) % 3452434812973llu % limit;
+	return ((long long) abs(data) * primeList[52]) % primeList[118] % limit;
 }
 
+/** CUDA kernel which inserts a single (key, value) pair (selected based on
+ *  block id & thread id) in the hash table.
+ */
 __global__ void kernel_insert(int *keys, int *values, int numEntries, hash_table hashmap) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx >= numEntries)
-		return;
+	// check thread index against task's upper bound
+	if (idx >= numEntries) return;
 
 	int oldKey, newKey;
 	newKey = keys[idx];
+
+	// compute hash value for the key
 	int hash = getHash(newKey, hashmap.size);
 
+	// ranges where to search an empty position
 	int rangeBegin[2] = {hash, 0};
 	int rangeEnd[2] = {hashmap.size, hash};
 
 	for (int r = 0; r <= 1; r++)
 		for (int i = rangeBegin[r]; i < rangeEnd[r]; i++) {
+			// try slot 0
 			oldKey = atomicCAS(&hashmap.map[0][i].key, KEY_INVALID, newKey);
 
 			if (oldKey == KEY_INVALID || oldKey == newKey) {
-				// the position was free
+				// the position was free (or was containing the same key)
 				// only the current thread can enter here because this slot was acquired atomically
 				// by the current thread (if oldKey == KEY_INVALID) or the slot was already
 				// containing newKey (and no other thread can try to insert this key)
-				hashmap.map[0][i].value = values[idx];
 
-				if (oldKey == newKey)
-					printf("*");
+				// we can safely set the pair's value
+				hashmap.map[0][i].value = values[idx];
 				return;
 			} else {
+				// try slot 1
 				oldKey = atomicCAS(&hashmap.map[1][i].key, KEY_INVALID, newKey);
 
 				if (oldKey == KEY_INVALID || oldKey == newKey) {
 					hashmap.map[1][i].value = values[idx];
-
-					if (oldKey == newKey)
-						printf("*");
 					return;
 				}
 			}
 		}
 }
 
+/** CUDA kernel which searches the value of a single key (selected based on the
+ *  block id & thread id) in hash table.
+ */
 __global__ void kernel_get(int *keys, int *values, int numEntries, hash_table hashmap) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx >= numEntries)
-		return;
+	// check thread index against task's upper bound
+	if (idx >= numEntries) return;
 
 	int key = keys[idx];
+
+	// compute hash value for the key
 	int hash = getHash(keys[idx], hashmap.size);
 
+	// ranges where to search the desired pair
 	int rangeBegin[2] = {hash, 0};
 	int rangeEnd[2] = {hashmap.size, hash};
 
 	for (int r = 0; r <= 1; r++) {
 		for (int i = rangeBegin[r]; i < rangeEnd[r]; i++) {
 			if (hashmap.map[0][i].key == key) {
+				// pair found in slot 0
 				values[idx] = hashmap.map[0][i].value;
 				return;
 			} else if (hashmap.map[1][i].key == key) {
+				// pair found in slot 1
 				values[idx] = hashmap.map[1][i].value;
 				return;
 			}
@@ -76,11 +89,12 @@ __global__ void kernel_get(int *keys, int *values, int numEntries, hash_table ha
 	}
 }
 
+/** CUDA kernel which copies a (key, value) pair from a hash table to another one. */
 __global__ void kernel_rehash(hash_table oldHash, hash_table newHash) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx >= oldHash.size)
-		return;
+	// check thread index against task's upper bound
+	if (idx >= oldHash.size) return;
 
 	for (int slot = 0; slot <= 1; slot++) {
 		if (oldHash.map[slot][idx].key == KEY_INVALID)
@@ -89,14 +103,18 @@ __global__ void kernel_rehash(hash_table oldHash, hash_table newHash) {
 
 		int oldKey, newKey;
 		newKey = oldHash.map[slot][idx].key;
+
+		// compute hash value for the key
 		int hash = getHash(newKey, newHash.size);
 
+		// ranges where to search an empty position in the new hash table
 		int rangeBegin[2] = {hash, 0};
 		int rangeEnd[2] = {newHash.size, hash};
 
 		bool inserted = false;
 		for (int r = 0; r <= 1 && !inserted; r++)
 			for (int i = rangeBegin[r]; i < rangeEnd[r]; i++) {
+				// try slot 0
 				oldKey = atomicCAS(&newHash.map[0][i].key, KEY_INVALID, newKey);
 
 				if (oldKey == KEY_INVALID) {
@@ -104,6 +122,7 @@ __global__ void kernel_rehash(hash_table oldHash, hash_table newHash) {
 					inserted = true;
 					break;
 				} else {
+					// try slot 1
 					oldKey = atomicCAS(&newHash.map[1][i].key, KEY_INVALID, newKey);
 
 					if (oldKey == KEY_INVALID) {
@@ -119,7 +138,6 @@ __global__ void kernel_rehash(hash_table oldHash, hash_table newHash) {
 /* INIT HASH
  */
 GpuHashTable::GpuHashTable(int size) {
-//	size = 1000000;
 	numInsertedPairs = 0;
 	hashmap.size = size;
 	hashmap.map[0] = nullptr;
@@ -138,13 +156,18 @@ GpuHashTable::GpuHashTable(int size) {
 /* DESTROY HASH
  */
 GpuHashTable::~GpuHashTable() {
+	// free hash table memory
 	cudaFree(hashmap.map[0]);
 	cudaFree(hashmap.map[1]);
 }
 
 /* RESHAPE HASH
  */
+/** Increase the size of the hash table and move all values from the old hash
+ *  by rehashing them into the new hash table.
+ */
 void GpuHashTable::reshape(int numBucketsReshape) {
+	// initialize the new hash table
 	hash_table newHashmap;
 	newHashmap.size = numBucketsReshape;
 
@@ -163,9 +186,11 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 
 	cudaDeviceSynchronize();
 
-	// free old maps' memory and set pointers to the new maps
+	// free old maps' memory
 	for (int slot = 0; slot <= 1; slot++)
 		cudaFree(hashmap.map[slot]);
+
+	// switch to the new hash table
 	hashmap = newHashmap;
 }
 
@@ -184,6 +209,7 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
 	}
 
 	// check if we need to increase the hashtable's size to reduce the load factor
+	// or to be able to insert all the new entries.
 	if (float(numInsertedPairs + numKeys) / hashmap.size >= MAX_LOAD_FACTOR)
 		reshape(int((numInsertedPairs + numKeys) / MIN_LOAD_FACTOR));
 
@@ -245,9 +271,8 @@ int *GpuHashTable::getBatch(int *keys, int numKeys) {
  * num elements / hash total slots elements
  */
 float GpuHashTable::loadFactor() {
-	if (hashmap.size == 0)
-		return 0;
-	return float(numInsertedPairs) / hashmap.size;
+	// avoid division by 0
+	return (hashmap.size == 0)? 0 : (float(numInsertedPairs) / hashmap.size);
 }
 
 /*********************************************************/

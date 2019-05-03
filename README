@@ -1,0 +1,9 @@
+Gabriel Boroghină
+333CB
+
+                            ASC Tema 3 - Parallel HashTable
+
+    Pentru implementarea tabelei hash paralele am folosit strategia de rezolvare
+a coliziunilor <linear probing> (de tipul open addresing).
+
+--------------------------------------------------------------------------------
