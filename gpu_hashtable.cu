@@ -3,39 +3,158 @@
 #include <stdlib.h>
 #include <ctime>
 #include <sstream>
-#include <string>
 
 #include "gpu_hashtable.hpp"
 
-__global__ void putPair(int key, int value) {
-
+__device__ int getHash(int data, int limit) {
+	return ((long long) abs(data) * 653267llu) % 3452434812973llu % limit;
 }
 
-__global__ void kernel_insert(int *keys, int *values, int *hashmap[2]) {
+__global__ void kernel_insert(int *keys, int *values, int numEntries, hash_table hashmap) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
+	if (idx >= numEntries)
+		return;
 
+	int oldKey, newKey;
+	newKey = keys[idx];
+	int hash = getHash(newKey, hashmap.size);
+
+	int rangeBegin[2] = {hash, 0};
+	int rangeEnd[2] = {hashmap.size, hash};
+
+	for (int r = 0; r <= 1; r++)
+		for (int i = rangeBegin[r]; i < rangeEnd[r]; i++) {
+			oldKey = atomicCAS(&hashmap.map[0][i].key, KEY_INVALID, newKey);
+
+			if (oldKey == KEY_INVALID || oldKey == newKey) {
+				// the position was free
+				// only the current thread can enter here because this slot was acquired atomically
+				// by the current thread (if oldKey == KEY_INVALID) or the slot was already
+				// containing newKey (and no other thread can try to insert this key)
+				hashmap.map[0][i].value = values[idx];
+				return;
+			} else {
+				oldKey = atomicCAS(&hashmap.map[1][i].key, KEY_INVALID, newKey);
+
+				if (oldKey == KEY_INVALID || oldKey == newKey) {
+					hashmap.map[1][i].value = values[idx];
+					return;
+				}
+			}
+		}
 }
 
-__global__ void kernel_get(int *keys, int *values, int *hashmap[2]) {
+__global__ void kernel_get(int *keys, int *values, int numEntries, hash_table hashmap) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
+	if (idx >= numEntries)
+		return;
+
+	int key = keys[idx];
+	int hash = getHash(keys[idx], hashmap.size);
+
+	int rangeBegin[2] = {hash, 0};
+	int rangeEnd[2] = {hashmap.size, hash};
+
+	for (int r = 0; r <= 1; r++) {
+		for (int i = rangeBegin[r]; i < rangeEnd[r]; i++) {
+			if (hashmap.map[0][i].key == key) {
+				values[idx] = hashmap.map[0][i].value;
+				return;
+			} else if (hashmap.map[1][i].key == key) {
+				values[idx] = hashmap.map[1][i].value;
+				return;
+			}
+		}
+	}
+}
+
+__global__ void kernel_rehash(hash_table oldHash, hash_table newHash) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx >= oldHash.size)
+		return;
+
+	for (int slot = 0; slot <= 1; slot++) {
+		if (oldHash.map[slot][idx].key == KEY_INVALID)
+			// not a pair here
+			continue;
+
+		int oldKey, newKey;
+		newKey = oldHash.map[slot][idx].key;
+		int hash = getHash(newKey, newHash.size);
+
+		int rangeBegin[2] = {hash, 0};
+		int rangeEnd[2] = {newHash.size, hash};
+
+		for (int r = 0; r <= 1; r++)
+			for (int i = rangeBegin[r]; i < rangeEnd[r]; i++) {
+				oldKey = atomicCAS(&newHash.map[0][i].key, KEY_INVALID, newKey);
+
+				if (oldKey == KEY_INVALID) {
+					newHash.map[0][i].value = oldHash.map[slot][idx].value;
+					return;
+				} else {
+					oldKey = atomicCAS(&newHash.map[1][i].key, KEY_INVALID, newKey);
+
+					if (oldKey == KEY_INVALID) {
+						newHash.map[1][i].value = oldHash.map[slot][idx].value;
+						return;
+					}
+				}
+				printf("%i ok in thread %i\n", i, idx);
+			}
+	}
 }
 
 /* INIT HASH
  */
 GpuHashTable::GpuHashTable(int size) {
-	cudaMalloc(&hashmap, size * sizeof(int));
+	numInsertedPairs = 0;
+	hashmap.size = size;
+	hashmap.map[0] = nullptr;
+	hashmap.map[1] = nullptr;
+
+	for (int slot = 0; slot <= 1; slot++)
+		if (cudaMalloc(&hashmap.map[slot], size * sizeof(entry)) != cudaSuccess)
+			std::cerr << "Memory allocation error\n";
+
 }
 
 /* DESTROY HASH
  */
 GpuHashTable::~GpuHashTable() {
-	cudaFree(hashmap);
+	cudaFree(hashmap.map[0]);
+	cudaFree(hashmap.map[1]);
 }
 
 /* RESHAPE HASH
  */
 void GpuHashTable::reshape(int numBucketsReshape) {
+	hash_table newHashmap;
+
+	newHashmap.size = numBucketsReshape;
+
+	std::cerr << "reshaping... " <<hashmap.size << " -> " << numBucketsReshape << '\n';
+	for (int slot = 0; slot <= 1; slot++)
+		if (cudaMalloc(&newHashmap.map[slot], numBucketsReshape * sizeof(entry)) != cudaSuccess)
+			std::cerr << "Memory allocation error in reshape\n";
+
+
+
+	// load kernel for rehashing all elements from hashmap
+	unsigned int numBlocks = hashmap.size / THREADS_PER_BLOCK;
+	if (hashmap.size % THREADS_PER_BLOCK != 0)
+		numBlocks++;
+	kernel_rehash<<< numBlocks, THREADS_PER_BLOCK >>>(hashmap, newHiashmap);
+
+	cudaDeviceSynchronize();
+
+	// free old maps' memory and set pointers to the new maps
+	for (int i = 0; i <= 1; i++)
+		cudaFree(hashmap.map[i]);
+	hashmap = newHashmap;
 }
 
 /* INSERT BATCH
@@ -43,30 +162,35 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
 	int *deviceKeys, *deviceValues;
 
-	int memSize = numKeys * sizeof(int);
+	size_t memSize = numKeys * sizeof(int);
 	cudaMalloc(&deviceKeys, memSize);
 	cudaMalloc(&deviceValues, memSize);
 
-	if (!deviceKeys || !deviceValues)
+	if (!deviceKeys || !deviceValues) {
+		std::cerr << "Memory allocation error\n";
 		return false;
+	}
 
 	// load keys and values into VRAM
 	cudaMemcpy(deviceKeys, keys, memSize, cudaMemcpyHostToDevice);
 	cudaMemcpy(deviceValues, values, memSize, cudaMemcpyHostToDevice);
 
 	// check if we need to increase the hashtable's size to reduce the load factor
-	if (float(numInsertedPairs + numKeys) / hashtableSize >= MAX_LOAD_FACTOR) {
-		hashtableSize = int((numInsertedPairs + numKeys) / MIN_LOAD_FACTOR);
-		reshape(hashtableSize);
-	}
+	if (float(numInsertedPairs + numKeys) / hashmap.size >= MAX_LOAD_FACTOR)
+		reshape(int((numInsertedPairs + numKeys) / MIN_LOAD_FACTOR));
 
 	// load kernel for inserting pairs into hashtable
-	kernel_insert<<< numKeys / THREADS_PER_BLOCK, THREADS_PER_BLOCK >>>(deviceKeys,
-	                                                                    deviceValues,
-	                                                                    hashmap);
+	unsigned int numBlocks = numKeys / THREADS_PER_BLOCK;
+	if (numKeys % THREADS_PER_BLOCK != 0)
+		numBlocks++;
+	kernel_insert<<< numBlocks, THREADS_PER_BLOCK >>>(deviceKeys,
+	                                                  deviceValues, numKeys,
+	                                                  hashmap);
 
 	// wait for all insertions to finish
 	cudaDeviceSynchronize();
+
+	numInsertedPairs += numKeys;
 
 	// free device memory
 	cudaFree(deviceKeys);
@@ -78,35 +202,47 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
 /* GET BATCH
  */
 int *GpuHashTable::getBatch(int *keys, int numKeys) {
-	int *deviceKeys, *values;
+	int *deviceKeys, *deviceValues, *hostValues;
 
-	int memSize = numKeys * sizeof(int);
+	size_t memSize = numKeys * sizeof(int);
 	cudaMalloc(&deviceKeys, memSize);
-	cudaMallocManaged(&values, memSize);
+	cudaMallocManaged(&deviceValues, memSize);
 
-	if (!deviceKeys || !values)
+	hostValues = (int *) malloc(memSize);
+
+	if (!deviceKeys || !deviceValues || !hostValues) {
+		std::cerr << "Memory allocation error\n";
 		return nullptr;
+	}
 
 	// load keys and values into VRAM
 	cudaMemcpy(deviceKeys, keys, memSize, cudaMemcpyHostToDevice);
 
-	kernel_get<<< numKeys / THREADS_PER_BLOCK, THREADS_PER_BLOCK >>>(deviceKeys,
-	                                                                 values,
-	                                                                 hashmap);
+	unsigned int numBlocks = numKeys / THREADS_PER_BLOCK;
+	if (numKeys % THREADS_PER_BLOCK != 0)
+		numBlocks++;
+	kernel_get<<< numBlocks, THREADS_PER_BLOCK >>>(deviceKeys,
+	                                               deviceValues, numKeys,
+	                                               hashmap);
 
 	cudaDeviceSynchronize();
 
+	cudaMemcpy(hostValues, deviceValues, memSize, cudaMemcpyDeviceToHost);
+
 	// free device memory
 	cudaFree(deviceKeys);
+	cudaFree(deviceValues);
 
-	return values;
+	return hostValues;
 }
 
 /* GET LOAD FACTOR
  * num elements / hash total slots elements
  */
 float GpuHashTable::loadFactor() {
-	return float(numInsertedPairs) / hashtableSize; // no larger than 1.0f = 100%
+	if (hashmap.size == 0)
+		return 0;
+	return float(numInsertedPairs) / hashmap.size;
 }
 
 /*********************************************************/
