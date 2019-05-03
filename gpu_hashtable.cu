@@ -6,9 +6,12 @@
 
 #include "gpu_hashtable.hpp"
 
+#define HASH_A 823117
+#define HASH_B 3452434812973
+
 /** Get the hash of a value and reduce it in the range [0, limit) */
 __device__ int getHash(int data, int limit) {
-	return ((long long) abs(data) * 823117) % 3452434812973 % limit;
+	return ((long long) abs(data) * HASH_A) % HASH_B % limit;
 }
 
 /** CUDA kernel which inserts a single (key, value) pair (selected based on

@@ -3,21 +3,50 @@ Gabriel Boroghină
 
                             ASC Tema 3 - Parallel HashTable
 
-Implementare
+Implementare hashtable
 
+* Strategie
     Pentru implementarea tabelei hash paralele am folosit strategia de rezolvare
-a coliziunilor <linear probing> (care este de tipul open addresing), iar pentru
-fiecare valoare hash posibila am alocat 2 sloturi ce pot fi umplute cu perechi (key, value) (altfel
-hash table-ul conține bucketuri de dimansiune 2).
-    Astfel, fiecare inserare va
+a coliziunilor "linear probing", iar pentru fiecare valoare hash posibila am alocat 2 sloturi ce pot
+fi umplute cu perechi (key, value) (altfel spus, hash table-ul conține bucketuri de dimansiune 2).
+    Astfel, fiecare inserare va calcula hash-ul cheii ce se dorește introdusă în hashtable,
+iar apoi se vor parcurge succesiv bucketurile tabelei, începând de la poziția dată de hash-ul
+cheii, până la găsirea unui bucket care are slotul 0, sau dacă nu slotul 1 liber. Aici se va insera
+perechea (cheie, valoare).
+    Căutarea unei chei se va realiza similar: se iterează prin bucketuri începând
+de la cel cu indexul egal cu hash-ul cheii și se compară atât cheia din slotul 0, cât și cea din
+slotul 1 cu cheia căutată. Căutarea se încheie când găsim cheia într-un bucket.
+
+    Funcția hash este una random de tipul (a * x) % b, cu a și b numere prime, relativ mari.
+(a a fost ales mai mic pentru a evita overflow-ul la înmulțirea cu x).
+
+* Load factor
+
+    Load factorul tabelei a fost menținut între 60% și 80%, restructurând tabela prin intermediul
+funcției reshape la fiecare inserare care ar fi crescut load factorul peste pragul maxim.
+Funcția reshape va aloca o nouă tabelă de dimensiune suficient de mare încât load factorul să scadă
+până la pragul inferior de 60%. Apoi se vor copia toate intrările din vechea tabelă în noua tabelă
+(folosind kernelul kernel_rehash) și se va elibera memoria din device ocupată de vechea tabelă.
 
 ---------------------------------------------------------------------------------------------------
-Stocare hash table în VRAM
+Folosire memorie
+
+* Stocare hash table în VRAM
 
     Pentru stocarea hash table-ului am folosit o structură hash_table, care reține
 dimensiunea tabelei hash și 2 pointeri la câte un vector de sloturi în care se pot
 introduce perechi (cheie, valoare). Folosirea a 2 pointeri se datorează implementării
-bucketized.
+bucketized (2 sloturi per bucket).
+    Bucketurile hash table-ului sunt reținute în VRAM, având în RAM doar cei 2 pointeri din structură
+către zona de memorie din device unde este stocată tabela.
+
+* Transfer memorie
+
+    Inserarea unei liste de perechi (cheie, valoare) presupune alocarea de memorie în device și
+copierea celor 2 vectori (key și value). Astfel, toate threadurile CUDA vor accesa cei 2 vectori
+din memoria globală.
+    În cazul operației get, am folosit memorie unified pentru stocarea vectorului în care se
+completează valorile pentru cheile cerute, ușurând astfel managementul memoriei pentru acest vector.
 
 ---------------------------------------------------------------------------------------------------
 Output rulare pe cluster
@@ -69,7 +98,15 @@ Output rulare pe cluster
     sys     0m2.501s
 
     Se observă o performanță semnificativ mai bună față de implementarea secvențială
-bazată pe std::unordered_map (care durează aproximativ 29s).
+bazată pe std::unordered_map (care durează în total aproximativ 29s). Avantajul de
+performanță se datorează paralelizării masive a operațiilor efectuate asupra tabelei hash
+(pentru fiecare element ce se dorește inserat/căutat se folosește un thread CUDA diferit).
+    Totuși raportul de performanță dintre cele 2 metode nu este la fel de mare ca raportul
+dintre numărul de threaduri folosite în fiecare dintre metode, lucru datorat faptului că o
+mare parte din timpul implementării paralele este ocupat de managementul memoriei (alocări,
+copieri Host to Device, Device to Host), lucru care se poate vedea mai jos în rezultatul
+rulării cu nvprof. Un alt factor este porțiunea de cod neparalelă din ambele metode (ex. popularea
+vectorilor de chei și valori ce vor fi trimiși funcțiilor de lucru cu hash table-ul).
 
 ---------------------------------------------------------------------------------------------------
 Profiling nvprof
@@ -92,3 +129,9 @@ Device "Tesla K40m (0)"
    Count  Avg Size  Min Size  Max Size  Total Size  Total Time  Name
     2368  165.38KB  4.0000KB  0.9961MB  382.4375MB  61.49075ms  Device To Host
 Total CPU Page faults: 1184
+
+    Se observă faptul că o mare parte din timp se pierde în copieri de memorie între host și
+device. Așadar, memoria reprezintă bottleneckul acestei implementări.
+    În rest, se poate concluziona că implementarea bazată pe linear probing are o performanță
+satisfăcătoare în practică (insert-ul și get-ul au timpi destul de mici; rehash-ul durează mai mult deoarece
+trebuie să se aloce memorie pentru noua tabelă, iar apoi să se reinsereze toate intrările din tabela veche).
